@@ -4,9 +4,16 @@
 #include <string.h>
 #include <errno.h>
 #include <ctype.h>
+#include <sys/mman.h>
 #include "support.h"
 #include "structs.h"
 #include "filesystem.h"
+
+
+#define Kilo  1024
+#define Mega (Kilo*Kilo)
+#define VolumeSize (4 * Mega)
+#define MAXFATSIZE (128 * Kilo)
 
 
 /*
@@ -26,14 +33,63 @@ char* generateData(char *source, size_t size)
 }
 
 
+
 /*
  * filesystem() - loads in the filesystem and accepts commands
  */
 void filesystem(char *file)
 {
 	/* pointer to the memory-mapped filesystem */
-	char *map = NULL;
+  char *map = mmap(0, 4*Mega, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
 
+  BootSector *sysInfo = NULL;
+  u_int16_t *FAT = NULL;
+  u_int8_t *data = NULL;
+
+  sysInfo = (BootSector*)map;
+  sysInfo->BytesPerSector = 512;
+  sysInfo->SectorsPerCluster = 1;
+  sysInfo->ReservedSectors = 1;
+  sysInfo->FATCopies = 1;
+  sysInfo->MaxRootEntries = 512;
+  sysInfo->TotalSectors = VolumeSize / sysInfo->BytesPerSector;
+  sysInfo->SectorsPerFAT = MAXFATSIZE / sysInfo->BytesPerSector;
+  memcpy(sysInfo->FileSystemType, "FAT16", 6);
+
+  FAT = (u_int16_t*)(map + sysInfo->ReservedSectors*sysInfo->BytesPerSector);
+  FAT[0] = RESERVEDCLUSTER; // FAT[0] reserved
+  FAT[1] = RESERVEDCLUSTER; // FAT[1] reserved
+
+  FILE_t *root = (FILE_t*)(map + sysInfo->ReservedSectors*sysInfo->BytesPerSector +
+      sysInfo->FATCopies*sysInfo->SectorsPerFAT*sysInfo->BytesPerSector);
+  root->Attr = ATTR_VOLUME_ID; // first entry of root is reserved
+
+  data = (u_int8_t*)(map +
+      sysInfo->ReservedSectors*sysInfo->BytesPerSector +
+      sysInfo->FATCopies*sysInfo->SectorsPerFAT*sysInfo->BytesPerSector +
+      sysInfo->MaxRootEntries*sizeof(FILE_t));
+
+
+  initFATRegion((u_int8_t*)(FAT + 2), (u_int8_t*)root);
+  initSector((u_int8_t*)root, data);
+  /*
+   * Useful calculations
+   *
+   * // N : cluster number or sector number ( if sysInfo->SectorsPerCluster == 1)
+   * FirstSectorOfCluster = DataStartSector + (N - 2) * sysInfo->SectorsPerCluster;
+   *
+   * FATEntryOfNSector = FAT + (N-2);
+   *
+   *
+   *
+   */
+
+  //TODO: store directory path name some where
+  //TODO: parse file name into two parts, and show as xxx.xxx
+  u_int8_t *working_dir = (u_int8_t*)root;
+  createFile(working_dir, FAT, data, sysInfo, "home", 1);
+  working_dir = cd(working_dir, FAT, data, sysInfo, TWO_POINT);
+  ls(working_dir, FAT, data, sysInfo);
 	/*
 	 * open file, handle errors, create it if necessary.
 	 * should end up with map referring to the filesystem.
@@ -93,7 +149,7 @@ void filesystem(char *file)
 		}
 		else if(!strncmp(buffer, "pwd", 3))
 		{
-			//pwd();
+			//pwd(cur);
 		}
 		else if(!strncmp(buffer, "cd ", 3))
 		{
@@ -101,11 +157,12 @@ void filesystem(char *file)
 		}
 		else if(!strncmp(buffer, "ls", 2))
 		{
-			//ls();
+			//ls(cur);
 		}
 		else if(!strncmp(buffer, "mkdir ", 6))
 		{
-			//mkdir(buffer+6);
+			//Directory *d = mkdir(cur, buffer+6);
+
 		}
 		else if(!strncmp(buffer, "cat ", 4))
 		{
