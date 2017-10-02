@@ -73,13 +73,15 @@ typedef struct FILE_t {
   u_int16_t FstCLusHI; // Always zero on FAT16
   u_int16_t LastWriteTime;
   u_int16_t LastWriteDate;
-  u_int16_t SectorNumber;
+  u_int16_t FirstClusterNo;
   u_int32_t FileSize;
 } FILE_t; //
 
-void initSector(u_int8_t *begin, u_int8_t *end);
+#define FILEENTRYSIZE sizeof(FILE_t)
+
+void initCluster(u_int16_t clusterNo, u_int8_t *dataRegion, BootSector *sysInfo);
 void initFATRegion(u_int8_t *begin, u_int8_t *end);
-void initFile(FILE_t *file, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename);
+void initFileEntry(FILE_t *file, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename);
 FILE_t* createFile(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename, int isDir);
 void ls(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
 u_int8_t* cd(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename);

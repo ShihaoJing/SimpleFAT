@@ -32,8 +32,6 @@ char* generateData(char *source, size_t size)
 	return retval;
 }
 
-
-
 /*
  * filesystem() - loads in the filesystem and accepts commands
  */
@@ -48,7 +46,7 @@ void filesystem(char *file)
 
   sysInfo = (BootSector*)map;
   sysInfo->BytesPerSector = 512;
-  sysInfo->SectorsPerCluster = 1;
+  sysInfo->SectorsPerCluster = 8; //cluster size = 4KB
   sysInfo->ReservedSectors = 1;
   sysInfo->FATCopies = 1;
   sysInfo->MaxRootEntries = 512;
@@ -67,11 +65,16 @@ void filesystem(char *file)
   data = (u_int8_t*)(map +
       sysInfo->ReservedSectors*sysInfo->BytesPerSector +
       sysInfo->FATCopies*sysInfo->SectorsPerFAT*sysInfo->BytesPerSector +
-      sysInfo->MaxRootEntries*sizeof(FILE_t));
+      sysInfo->MaxRootEntries*FILEENTRYSIZE);
 
 
   initFATRegion((u_int8_t*)(FAT + 2), (u_int8_t*)root);
-  initSector((u_int8_t*)root, data);
+
+  // initialize ROOT directory
+  for (u_int8_t *begin = (u_int8_t*)root; begin != data ; begin += FILEENTRYSIZE) {
+    FILE_t *f = (FILE_t*)begin;
+    f->Filename[0] = DIRECTORY_NOT_USED;
+  }
   /*
    * Useful calculations
    *
@@ -88,7 +91,7 @@ void filesystem(char *file)
   //TODO: parse file name into two parts, and show as xxx.xxx
   u_int8_t *working_dir = (u_int8_t*)root;
   createFile(working_dir, FAT, data, sysInfo, "home", 1);
-  working_dir = cd(working_dir, FAT, data, sysInfo, TWO_POINT);
+  working_dir = cd(working_dir, FAT, data, sysInfo, "home");
   ls(working_dir, FAT, data, sysInfo);
 	/*
 	 * open file, handle errors, create it if necessary.
