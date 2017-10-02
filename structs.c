@@ -72,11 +72,13 @@ void initDirContent(FILE_t *cur_dir,
 {
   FILE_t *point = (FILE_t*)cur_dir_content;
   memcpy(point, cur_dir, FILEENTRYSIZE);
-  strcpy(point->Filename, ".         "); // must be 11 characters
+  point->Attr |= ATTR_HIDDEN;
+  //strcpy(point->Filename, ".         "); // must be 11 characters
 
   FILE_t *point_point = (FILE_t*)(cur_dir_content + FILEENTRYSIZE);
   memcpy(point_point, (FILE_t*)parent_dir_content, FILEENTRYSIZE);
   strcpy(point_point->Filename, "..        "); // must be 11 characters
+  point->Attr |= ATTR_HIDDEN;
 }
 
 
@@ -120,6 +122,10 @@ FILE_t* createFile(u_int8_t *working_dir,
       u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
       while (begin != end) {
         FILE_t *f = (FILE_t *) begin;
+        if (f->Attr & ATTR_HIDDEN) { // tricky solution to skip first two entries
+          begin += FILEENTRYSIZE;
+          continue;
+        }
         if (f->Filename[0] == DIRECTORY_NOT_USED) {
           initFileEntry(f, FAT, data, sysInfo, filename);
           if (isDir) {
@@ -146,10 +152,10 @@ void ls(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysIn
     u_int8_t *begin = working_dir + FILEENTRYSIZE; // skip the reserved entry in Root
     u_int8_t *end = data;
     while (begin != end) {
-      FILE_t *f = (FILE_t*)begin;
+      FILE_t *f = (FILE_t *) begin;
       if (f->Filename[0] == DIRECTORY_NOT_USED)
         break;
-      printf("%s\n", f->Filename);
+      printf("%s\t", f->Filename);
       begin += FILEENTRYSIZE;
     }
   }
@@ -160,9 +166,13 @@ void ls(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysIn
       u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
       while (begin != end) {
         FILE_t *f = (FILE_t *) begin;
+        if (f->Attr & ATTR_HIDDEN) { // skip first two
+          printf(".\t..\t");
+          begin += 2 * FILEENTRYSIZE;
+        }
         if (f->Filename[0] == DIRECTORY_NOT_USED)
           break;
-        printf("%s\n", f->Filename);
+        printf("%s\t", f->Filename);
         begin += FILEENTRYSIZE;
       }
       clusterNo = FAT[clusterNo]; // find in next sector
@@ -214,4 +224,26 @@ u_int8_t* cd(u_int8_t *working_dir,
     return NULL; // dir not found
   }
 
+}
+
+void pwd(u_int8_t *working_dir,
+         u_int16_t *FAT,
+         u_int8_t *data,
+         BootSector *sysInfo)
+{
+  if (isRootDirectory(working_dir)) {
+    printf("/");
+    return;
+  }
+  FILE_t *dir = (FILE_t*)working_dir;
+  u_int16_t parentCluster = (dir + 1)->FirstClusterNo;
+  if (parentCluster == 0) {
+    u_int8_t *ROOT = (u_int8_t*)FAT + sysInfo->FATCopies * sysInfo->SectorsPerFAT * sysInfo->BytesPerSector;
+    pwd(ROOT, FAT, data, sysInfo);
+  }
+  else {
+    u_int8_t *ROOT = data + (parentCluster - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+    pwd(ROOT, FAT, data, sysInfo);
+  }
+  printf("%s/", dir->Filename);
 }

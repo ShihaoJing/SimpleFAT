@@ -85,6 +85,6 @@ void initFileEntry(FILE_t *file, u_int16_t *FAT, u_int8_t *data, BootSector *sys
 FILE_t* createFile(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename, int isDir);
 void ls(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
 u_int8_t* cd(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename);
-
+void pwd(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
 
 #endif

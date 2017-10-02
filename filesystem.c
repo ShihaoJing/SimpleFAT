@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <ctype.h>
 #include <sys/mman.h>
@@ -92,7 +93,11 @@ void filesystem(char *file)
   u_int8_t *working_dir = (u_int8_t*)root;
   createFile(working_dir, FAT, data, sysInfo, "home", 1);
   working_dir = cd(working_dir, FAT, data, sysInfo, "home");
+  createFile(working_dir, FAT, data, sysInfo, "Shihao", 1);
+  working_dir = cd(working_dir, FAT, data, sysInfo, "Shihao");
   ls(working_dir, FAT, data, sysInfo);
+  pwd(working_dir, FAT, data, sysInfo);
+
 	/*
 	 * open file, handle errors, create it if necessary.
 	 * should end up with map referring to the filesystem.
