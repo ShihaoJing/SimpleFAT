@@ -56,8 +56,8 @@ void filesystem(char *file)
   memcpy(sysInfo->FileSystemType, "FAT16", 6);
 
   FAT = (u_int16_t*)(map + sysInfo->ReservedSectors*sysInfo->BytesPerSector);
-  FAT[0] = RESERVEDCLUSTER; // FAT[0] reserved
-  FAT[1] = RESERVEDCLUSTER; // FAT[1] reserved
+  FAT[0] = RESERVED_CLUSTER; // FAT[0] reserved
+  FAT[1] = RESERVED_CLUSTER; // FAT[1] reserved
 
   FILE_t *root = (FILE_t*)(map + sysInfo->ReservedSectors*sysInfo->BytesPerSector +
       sysInfo->FATCopies*sysInfo->SectorsPerFAT*sysInfo->BytesPerSector);
@@ -66,13 +66,13 @@ void filesystem(char *file)
   data = (u_int8_t*)(map +
       sysInfo->ReservedSectors*sysInfo->BytesPerSector +
       sysInfo->FATCopies*sysInfo->SectorsPerFAT*sysInfo->BytesPerSector +
-      sysInfo->MaxRootEntries*FILEENTRYSIZE);
+      sysInfo->MaxRootEntries*FILE_ENTRY_SIZE);
 
 
   initFATRegion((u_int8_t*)(FAT + 2), (u_int8_t*)root);
 
   // initialize ROOT directory
-  for (u_int8_t *begin = (u_int8_t*)root; begin != data ; begin += FILEENTRYSIZE) {
+  for (u_int8_t *begin = (u_int8_t*)root; begin != data ; begin += FILE_ENTRY_SIZE) {
     FILE_t *f = (FILE_t*)begin;
     f->Filename[0] = DIRECTORY_NOT_USED;
   }
@@ -88,7 +88,6 @@ void filesystem(char *file)
    *
    */
 
-  //TODO: store directory path name some where
   //TODO: parse file name into two parts, and show as xxx.xxx
   u_int8_t *working_dir = (u_int8_t*)root;
   createFile(working_dir, FAT, data, sysInfo, "home", 1);

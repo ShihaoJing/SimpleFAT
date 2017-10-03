@@ -20,10 +20,11 @@
  *
  */
 
-#define FREECLUSTER     0x0000
-#define ENDOFFILE       0xFFFF
-#define RESERVEDCLUSTER 0xFF00
+#define FREE_CLUSTER     0x0000
+#define END_OF_FILE       0xFFFF
+#define RESERVED_CLUSTER 0xFF00
 
+#define MAX_LEN_OF_SFN 11
 #define ONE_POINT ".         "
 #define TWO_POINT "..        "
 
@@ -62,7 +63,7 @@ typedef struct BootSector {
 #define DIRECTORY_NOT_USED 0xE5
 #define DIRECTORY_NOT_USED_AND_LAST 0x00
 
-typedef struct FILE_t {
+typedef struct FileEntry {
   unsigned char Filename[11]; // 8.3 format, Filename[0] indicates status
   u_int8_t Attr; // Attribute Byte
   u_int8_t ReservedWinNT; // reserved for WindowsNT
@@ -77,12 +78,28 @@ typedef struct FILE_t {
   u_int32_t FileSize;
 } FILE_t; //
 
-#define FILEENTRYSIZE sizeof(FILE_t)
+#define FILE_ENTRY_SIZE sizeof(FILE_t)
+
+#define Last_LFN 0x40
+
+typedef struct LongFileName
+{
+  u_int8_t sequenceNo;            // Sequence number, 0xe5 for
+  unsigned char fileName_Part1[10];    // file name part
+  u_int8_t fileattribute;         // File attibute
+  u_int8_t reserved_1;
+  u_int8_t checksum;              // Checksum
+  u_int8_t fileName_Part2[12];    // WORD reserved_2;
+  u_int16_t FirstClusterNo; // Must be zero
+  u_int8_t fileName_Part3[4];
+} LFN;
 
 void initCluster(u_int16_t clusterNo, u_int8_t *dataRegion, BootSector *sysInfo);
 void initFATRegion(u_int8_t *begin, u_int8_t *end);
 void initFileEntry(FILE_t *file, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename);
 FILE_t* createFile(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename, int isDir);
+
+
 void ls(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
 u_int8_t* cd(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename);
 void pwd(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
