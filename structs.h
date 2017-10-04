@@ -20,17 +20,18 @@
  *
  */
 
-#define FREE_CLUSTER     0x0000
+#define FREE_CLUSTER      0x0000
 #define END_OF_FILE       0xFFFF
-#define RESERVED_CLUSTER 0xFF00
+#define RESERVED_CLUSTER  0xFF00
 
 #define MAX_LEN_OF_SFN 11
-#define ONE_POINT ".         "
-#define TWO_POINT "..        "
+#define MAX_LEN_OF_LFN 255
+#define ONE_POINT ".          "
+#define TWO_POINT_FILE_ENTRY "..         "
 
 typedef struct BootSector {
-  unsigned char JumpCode[1]; // Code to jump to bootstrap code;
-  unsigned char OemID; // Oed ID
+  u_int8_t JumpCode[1]; // Code to jump to bootstrap code;
+  u_int8_t OemID; // Oed ID
   u_int16_t BytesPerSector; // Bytes per Sector
   u_int8_t SectorsPerCluster; // Sectors per cluster
   u_int16_t ReservedSectors; // Reserved sectors from the start of the volume
@@ -46,25 +47,25 @@ typedef struct BootSector {
   u_int8_t DriveNumber; // Drive Number
   u_int8_t ExtendedSignature; // indicates that the next three fields are available
   u_int32_t VolumeSerialNumber; // Volume Serial Number
-  unsigned char VolumeLable[11]; // Volume Label - Should be the same as in the root directory
-  unsigned char FileSystemType[8]; // File System Type, should be "FAT16"
-  unsigned char BootstrapCode[448]; // Bootstrap Code
+  u_int8_t VolumeLable[11]; // Volume Label - Should be the same as in the root directory
+  u_int8_t FileSystemType[8]; // File System Type, should be "FAT16"
+  u_int8_t BootstrapCode[448]; // Bootstrap Code
   u_int16_t BootSectorSignature; // Boot Sector Signature
 } BootSector;
 
-#define ATTR_READ_ONLY 0x01
-#define ATTR_HIDDEN 0x02
-#define ATTR_SYSTEM 0x04
-#define ATTR_VOLUME_ID 0x08
-#define ATTR_DIRECTORY 0x10
-#define ATTR_ARCHIEVE 0x20
+#define ATTR_READ_ONLY      0x01
+#define ATTR_HIDDEN         0x02
+#define ATTR_SYSTEM         0x04
+#define ATTR_VOLUME_ID      0x08
+#define ATTR_DIRECTORY      0x10
+#define ATTR_ARCHIEVE       0x20
 #define ATTR_LONE_FILE_NAME 0x0F
 
-#define DIRECTORY_NOT_USED 0xE5
+#define DIRECTORY_NOT_USED          0xE5
 #define DIRECTORY_NOT_USED_AND_LAST 0x00
 
 typedef struct FileEntry {
-  unsigned char Filename[11]; // 8.3 format, Filename[0] indicates status
+  u_int8_t Filename[11]; // 8.3 format, Filename[0] indicates status
   u_int8_t Attr; // Attribute Byte
   u_int8_t ReservedWinNT; // reserved for WindowsNT
   u_int8_t Creation;
@@ -85,18 +86,16 @@ typedef struct FileEntry {
 typedef struct LongFileName
 {
   u_int8_t sequenceNo;            // Sequence number, 0xe5 for
-  unsigned char fileName_Part1[10];    // file name part
+  u_int8_t fileName_Part1[13];    // file name part
   u_int8_t fileattribute;         // File attibute
   u_int8_t reserved_1;
   u_int8_t checksum;              // Checksum
-  u_int8_t fileName_Part2[12];    // WORD reserved_2;
+  u_int8_t fileName_Part2[9];    // WORD reserved_2;
   u_int16_t FirstClusterNo; // Must be zero
   u_int8_t fileName_Part3[4];
 } LFN;
 
-void initCluster(u_int16_t clusterNo, u_int8_t *dataRegion, BootSector *sysInfo);
-void initFATRegion(u_int8_t *begin, u_int8_t *end);
-void initFileEntry(FILE_t *file, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename);
+void initFileEntry(u_int8_t *fp, char *filename, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, int isDir);
 FILE_t* createFile(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename, int isDir);
 
 

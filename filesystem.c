@@ -13,8 +13,7 @@
 
 #define Kilo  1024
 #define Mega (Kilo*Kilo)
-#define VolumeSize (4 * Mega)
-#define MAXFATSIZE (128 * Kilo)
+#define MAX_FAT_SIZE (128 * Kilo)
 
 
 /*
@@ -39,7 +38,8 @@ char* generateData(char *source, size_t size)
 void filesystem(char *file)
 {
 	/* pointer to the memory-mapped filesystem */
-  char *map = mmap(0, 4*Mega, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+  int volumeSize = 4 * Mega;
+  u_int8_t *map = mmap(0, volumeSize, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
 
   BootSector *sysInfo = NULL;
   u_int16_t *FAT = NULL;
@@ -51,31 +51,32 @@ void filesystem(char *file)
   sysInfo->ReservedSectors = 1;
   sysInfo->FATCopies = 1;
   sysInfo->MaxRootEntries = 512;
-  sysInfo->TotalSectors = VolumeSize / sysInfo->BytesPerSector;
-  sysInfo->SectorsPerFAT = MAXFATSIZE / sysInfo->BytesPerSector;
+  sysInfo->TotalSectors = volumeSize / sysInfo->BytesPerSector;
+  sysInfo->SectorsPerFAT = MAX_FAT_SIZE / sysInfo->BytesPerSector;
   memcpy(sysInfo->FileSystemType, "FAT16", 6);
 
-  FAT = (u_int16_t*)(map + sysInfo->ReservedSectors*sysInfo->BytesPerSector);
+  //initialize FAT
+  for (u_int8_t *fp = (u_int8_t*)(sysInfo + 1), *e = fp + MAX_FAT_SIZE; fp != e; fp += 2)
+  {
+    *(u_int16_t*)fp = FREE_CLUSTER;
+  }
+  FAT = (u_int16_t*)(sysInfo + 1);
   FAT[0] = RESERVED_CLUSTER; // FAT[0] reserved
   FAT[1] = RESERVED_CLUSTER; // FAT[1] reserved
 
-  FILE_t *root = (FILE_t*)(map + sysInfo->ReservedSectors*sysInfo->BytesPerSector +
-      sysInfo->FATCopies*sysInfo->SectorsPerFAT*sysInfo->BytesPerSector);
+
+
+  FILE_t *root = (FILE_t*)((u_int8_t*)FAT + MAX_FAT_SIZE);
   root->Attr = ATTR_VOLUME_ID; // first entry of root is reserved
-
-  data = (u_int8_t*)(map +
-      sysInfo->ReservedSectors*sysInfo->BytesPerSector +
-      sysInfo->FATCopies*sysInfo->SectorsPerFAT*sysInfo->BytesPerSector +
-      sysInfo->MaxRootEntries*FILE_ENTRY_SIZE);
-
-
-  initFATRegion((u_int8_t*)(FAT + 2), (u_int8_t*)root);
-
-  // initialize ROOT directory
-  for (u_int8_t *begin = (u_int8_t*)root; begin != data ; begin += FILE_ENTRY_SIZE) {
+  data = (u_int8_t*)(root) + sysInfo->MaxRootEntries * FILE_ENTRY_SIZE;
+  //initialize root and data region
+  for (u_int8_t *begin = (u_int8_t*)root, *end = map + volumeSize; begin != end; begin += FILE_ENTRY_SIZE) {
     FILE_t *f = (FILE_t*)begin;
     f->Filename[0] = DIRECTORY_NOT_USED;
   }
+
+
+
   /*
    * Useful calculations
    *

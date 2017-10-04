@@ -12,77 +12,66 @@ int isRootDirectory(u_int8_t *working_dir) {
   return dir->Attr == ATTR_VOLUME_ID;
 }
 
-/*
- * Initialize entries in cluster to DIRECTORY_NOT_USED state;
- */
-void initCluster(u_int16_t clusterNo,
-                 u_int8_t *dataRegion,
-                 BootSector *sysInfo)
-{
-  u_int8_t *begin = dataRegion + (clusterNo - 2)
-                    * sysInfo->SectorsPerCluster
-                    * sysInfo->BytesPerSector;
-  u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
-  while (begin != end) {
-    FILE_t *f = (FILE_t*)begin;
-    f->Filename[0] = DIRECTORY_NOT_USED;
-    begin += FILE_ENTRY_SIZE;
-  }
-}
-
-/*
- * Initialize entries in FAT to FREE_CLUSTER
- */
-void initFATRegion(u_int8_t *begin, u_int8_t *end) {
-  while (begin != end) {
-    u_int16_t *f = (u_int16_t *)begin;
-    *f = FREE_CLUSTER;
-    begin += 2; // size of u_int16_t;
-  }
-}
 
 /*
  * Initialize fields in File_t
+ * Note: Assume the remaining memory region in current cluster can hold all LFN entries
  * 1. Find a free cluster
  * 2. Initialize that cluster
  * 3. Bind cluster number to File_t->FirstClusterNo
  */
-void initFileEntry(FILE_t *file,
+void initFileEntry(u_int8_t *fp,
+                   char *filename,
                    u_int16_t *FAT,
                    u_int8_t *dataRegion,
                    BootSector *sysInfo,
-                   char *filename)
+                   int isDir)
 {
-  if (strlen(filename) > MAX_LEN_OF_SFN) {
-    //TODO: generate LFN entries
-  }
-
-  strcpy(file->Filename, filename);
-  file->FileSize = 0;
+  FILE_t *f = NULL;
   u_int16_t N = 2;
   while (FAT[N] != FREE_CLUSTER)
     ++N;
-  initCluster(N, dataRegion, sysInfo);
   FAT[N] = END_OF_FILE;
-  file->FirstClusterNo = N;
-}
 
-/*
- * Create two directories( '.' and '..') in every subdirectories
- */
-void initDirContent(FILE_t *cur_dir,
-                    u_int8_t *cur_dir_content,
-                    u_int8_t *parent_dir_content)
-{
-  FILE_t *point = (FILE_t*)cur_dir_content;
-  memcpy(point, cur_dir, FILE_ENTRY_SIZE);
-  point->Attr |= ATTR_HIDDEN;
-  //strcpy(point->Filename, ".         ");
+  //TODO: //bind after cluster initialized
+  f->FirstClusterNo = N;
 
-  FILE_t *point_point = (FILE_t*)(cur_dir_content + FILE_ENTRY_SIZE);
-  memcpy(point_point, (FILE_t*)parent_dir_content, FILE_ENTRY_SIZE);
-  strcpy(point_point->Filename, "..        ");
-  point->Attr |= ATTR_HIDDEN;
+  if (strlen(filename) > MAX_LEN_OF_SFN) {
+    //Each LFN can represent up to 13 chars.
+    int len = strlen(filename);
+    int counts = (len % 13 == 0) ? len / 13 :  len / 13 + 1;
+
+    f = (FILE_t*)fp + counts;
+    f->Attr |= ATTR_ARCHIEVE; // indicate this entry is a SFN associated with LFN
+    memcpy(f->Filename, filename, sizeof(f->Filename)); // just to indicate a non-empty entry
+
+    LFN *lfn = (LFN*)(f-1);
+    for (int i = 0; i < counts; ++i, --lfn) {
+      lfn->fileattribute |= ATTR_LONE_FILE_NAME;
+      lfn->sequenceNo = i + 1;
+      int len_to_copy = strlen(filename + i * 13) >= 13 ? 13 : strlen(filename + i * 13);
+      memcpy(lfn->fileName_Part1, filename + i * 13, len_to_copy);
+    }
+    ++lfn;
+    lfn->sequenceNo |= Last_LFN; // mark last LFN
+
+    //TODO:
+    /*FILE_t *point = (FILE_t*)cur_dir_content;
+    memcpy(point, cur_dir, FILE_ENTRY_SIZE);
+    point->Attr |= ATTR_HIDDEN;
+    //strcpy(point->Filename, ".         ");
+
+    FILE_t *point_point = (FILE_t*)(cur_dir_content + FILE_ENTRY_SIZE);
+    memcpy(point_point, (FILE_t*)parent_dir_content, FILE_ENTRY_SIZE);
+    memcpy(point_point->Filename, TWO_POINT_FILE_ENTRY, 11);
+    point->Attr |= ATTR_HIDDEN;*/
+  }
+  else {
+    //NOTE: filename should be padding with empty, here copy directly to make search(life) easy
+    f = (FILE_t*)fp;
+    memcpy(f->Filename, filename, strlen(filename));
+  }
+
 }
 
 
@@ -97,17 +86,18 @@ FILE_t* createFile(u_int8_t *working_dir,
                    char *filename,
                    int isDir)
 {
+  if (strlen(filename) > MAX_LEN_OF_LFN || strlen(filename) == 0)
+  {
+    printf("%s", "Length of filename must be within range from 1 to 255");
+    return NULL;
+  }
   if (isRootDirectory(working_dir)) {
     u_int8_t *begin = working_dir + FILE_ENTRY_SIZE; // skip the reserved entry in Root
     u_int8_t *end = data;
     while (begin != end) {
       FILE_t *f = (FILE_t*)begin;
       if (f->Filename[0] == DIRECTORY_NOT_USED) {
-        initFileEntry(f, FAT, data, sysInfo, filename);
-        if (isDir) {
-          f->Attr = ATTR_DIRECTORY;
-          initDirContent(f, data + (f->FirstClusterNo-2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector, working_dir);
-        }
+        initFileEntry(begin, filename, FAT, data, sysInfo, isDir);
         return f;
       }
       else if (strcmp(f->Filename, filename) == 0){
@@ -131,11 +121,7 @@ FILE_t* createFile(u_int8_t *working_dir,
           continue;
         }
         if (f->Filename[0] == DIRECTORY_NOT_USED) {
-          initFileEntry(f, FAT, data, sysInfo, filename);
-          if (isDir) {
-            f->Attr = ATTR_DIRECTORY;
-            initDirContent(f, data + (f->FirstClusterNo-2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector, working_dir);
-          }
+          initFileEntry(begin, filename, FAT, data, sysInfo, isDir);
           return f;
         }
         else if (strcmp(f->Filename, filename) == 0) {
@@ -192,7 +178,7 @@ u_int8_t* cd(u_int8_t *working_dir,
              char *dir_name)
 {
   if (isRootDirectory(working_dir)) {
-    if (strcmp(dir_name, ONE_POINT) == 0 || strcmp(dir_name, TWO_POINT) == 0)
+    if (strcmp(dir_name, ONE_POINT) == 0 || strcmp(dir_name, TWO_POINT_FILE_ENTRY) == 0)
       return working_dir;
     u_int8_t *begin = working_dir + FILE_ENTRY_SIZE; // skip the reserved entry in Root
     u_int8_t *end = data;
