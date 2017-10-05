@@ -23,6 +23,7 @@
 #define FREE_CLUSTER      0x0000
 #define END_OF_FILE       0xFFFF
 #define RESERVED_CLUSTER  0xFF00
+#define DELETED_CLUSTER   0xF000
 
 #define MAX_LEN_OF_SFN 11
 #define MAX_LEN_OF_LFN 255
@@ -58,6 +59,7 @@ typedef struct BootSector {
 #define ATTR_DIRECTORY      0x10
 #define ATTR_ARCHIEVE       0x20
 #define ATTR_LONE_FILE_NAME 0x0F
+#define ATTR_DELETED        0x40
 
 #define DIRECTORY_NOT_USED          0xE5
 #define DIRECTORY_NOT_USED_AND_LAST 0x00
@@ -106,5 +108,7 @@ FILE_t* cd(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysI
 
 void ls(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
 void pwd(FILE_t *working_dir, u_int8_t *data, BootSector *sysInfo);
+void undeleteFile(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename);
+
 
 #endif

@@ -32,6 +32,25 @@ char* generateData(char *source, size_t size)
 	return retval;
 }
 
+void initializeFileSystem(u_int8_t *map) {
+
+}
+
+void verifyFileSystem(u_int8_t *map) {
+
+}
+
+void usage(u_int8_t *map, u_int8_t *root, u_int8_t *FAT) {
+  printf("%lu bytes have been used by system\n", root - map);
+  int count = 0;
+  for (u_int8_t *fp = FAT, *e = fp + MAX_FAT_SIZE; fp != e; fp += 2)
+  {
+    if (*(u_int16_t*)fp != FREE_CLUSTER)
+      ++count;
+  }
+  printf("%d bytes have been used by actual files\n", count * 512);
+}
+
 
 
 /*
@@ -49,7 +68,7 @@ void filesystem(char *file)
 
   sysInfo = (BootSector*)map;
   sysInfo->BytesPerSector = 512;
-  sysInfo->SectorsPerCluster = 8; //cluster size = 4KB
+  sysInfo->SectorsPerCluster = 1; //cluster size = 4KB
   sysInfo->ReservedSectors = 1;
   sysInfo->FATCopies = 1;
   sysInfo->MaxRootEntries = 512;
@@ -154,7 +173,7 @@ void filesystem(char *file)
 		}
 		else if(!strncmp(buffer, "usage", 5))
 		{
-			//usage();
+			usage(map, root, FAT);
 		}
 		else if(!strncmp(buffer, "pwd", 3))
 		{
@@ -238,7 +257,7 @@ void filesystem(char *file)
 		}
 		else if(!strncmp(buffer, "undelete ", 9))
 		{
-			//undelete(buffer + 9);
+          undeleteFile(working_dir, FAT, data, sysInfo, buffer+9);
 		}
 
 

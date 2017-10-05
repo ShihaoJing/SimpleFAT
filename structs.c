@@ -228,3 +228,43 @@ void pwd(FILE_t *working_dir, u_int8_t *data, BootSector *sysInfo)
   printf("%s/", working_dir->Filename);
 }
 
+void undeleteFATEntry(int clusterNo, u_int16_t *FAT) {
+  FAT[clusterNo] ^= DELETED_CLUSTER;
+  if (FAT[clusterNo] == END_OF_FILE) {
+    return;
+  }
+  undeleteFATEntry(FAT[clusterNo], FAT);
+}
+
+void undeleteFile(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename) {
+  if (isRootDirectory(working_dir)) {
+    u_int8_t *begin = (u_int8_t*)(working_dir + 1); // skip the reserved entry in Root
+    u_int8_t *end = data;
+    while (begin != end) {
+      FILE_t *f = (FILE_t*)begin;
+      if (strcmp(f->Filename, filename) == 0) {
+        f->Attr ^= ATTR_DELETED;
+        undeleteFATEntry(f->FirstClusterNo, FAT);
+        return;
+      }
+      begin += FILE_ENTRY_SIZE;
+    }
+  }
+  else {
+    u_int16_t clusterNo = working_dir->FirstClusterNo;
+    do {
+      u_int8_t *begin = data + (clusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+      u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+      while (begin != end) {
+        FILE_t *f = (FILE_t *) begin;
+        if (strcmp(f->Filename, filename) == 0) {
+          f->Attr ^= ATTR_DELETED;
+          undeleteFATEntry(f->FirstClusterNo, FAT);
+          return;
+        }
+        begin += FILE_ENTRY_SIZE;
+      }
+      clusterNo = FAT[clusterNo]; // find in next sector
+    } while (clusterNo != END_OF_FILE);
+  }
+}
