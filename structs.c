@@ -7,10 +7,10 @@
  */
 
 
-int isRootDirectory(u_int8_t *working_dir) {
-  FILE_t *dir = (FILE_t*)working_dir;
-  return dir->Attr == ATTR_VOLUME_ID;
+int isRootDirectory(FILE_t *working_dir) {
+  return working_dir->Attr == ATTR_VOLUME_ID;
 }
+
 
 
 /*
@@ -20,7 +20,8 @@ int isRootDirectory(u_int8_t *working_dir) {
  * 2. Initialize that cluster
  * 3. Bind cluster number to File_t->FirstClusterNo
  */
-void initFileEntry(u_int8_t *fp,
+void initFileEntry(u_int8_t *working_dir,
+                   u_int8_t *fp,
                    char *filename,
                    u_int16_t *FAT,
                    u_int8_t *dataRegion,
@@ -28,18 +29,11 @@ void initFileEntry(u_int8_t *fp,
                    int isDir)
 {
   FILE_t *f = NULL;
-  u_int16_t N = 2;
-  while (FAT[N] != FREE_CLUSTER)
-    ++N;
-  FAT[N] = END_OF_FILE;
-
-  //TODO: //bind after cluster initialized
-  f->FirstClusterNo = N;
 
   if (strlen(filename) > MAX_LEN_OF_SFN) {
     //Each LFN can represent up to 13 chars.
     int len = strlen(filename);
-    int counts = (len % 13 == 0) ? len / 13 :  len / 13 + 1;
+    int counts = (len % 10 == 0) ? len / 10 :  len / 10 + 1;
 
     f = (FILE_t*)fp + counts;
     f->Attr |= ATTR_ARCHIEVE; // indicate this entry is a SFN associated with LFN
@@ -49,22 +43,11 @@ void initFileEntry(u_int8_t *fp,
     for (int i = 0; i < counts; ++i, --lfn) {
       lfn->fileattribute |= ATTR_LONE_FILE_NAME;
       lfn->sequenceNo = i + 1;
-      int len_to_copy = strlen(filename + i * 13) >= 13 ? 13 : strlen(filename + i * 13);
-      memcpy(lfn->fileName_Part1, filename + i * 13, len_to_copy);
+      int len_to_copy = strlen(filename + i * 10) >= 10 ? 10 : strlen(filename + i * 10);
+      memcpy(lfn->fileName_Part1, filename + i * 10, len_to_copy);
     }
     ++lfn;
     lfn->sequenceNo |= Last_LFN; // mark last LFN
-
-    //TODO:
-    /*FILE_t *point = (FILE_t*)cur_dir_content;
-    memcpy(point, cur_dir, FILE_ENTRY_SIZE);
-    point->Attr |= ATTR_HIDDEN;
-    //strcpy(point->Filename, ".         ");
-
-    FILE_t *point_point = (FILE_t*)(cur_dir_content + FILE_ENTRY_SIZE);
-    memcpy(point_point, (FILE_t*)parent_dir_content, FILE_ENTRY_SIZE);
-    memcpy(point_point->Filename, TWO_POINT_FILE_ENTRY, 11);
-    point->Attr |= ATTR_HIDDEN;*/
   }
   else {
     //NOTE: filename should be padding with empty, here copy directly to make search(life) easy
@@ -72,6 +55,25 @@ void initFileEntry(u_int8_t *fp,
     memcpy(f->Filename, filename, strlen(filename));
   }
 
+  u_int16_t N = 2;
+  while (FAT[N] != FREE_CLUSTER)
+    ++N;
+  FAT[N] = END_OF_FILE;
+
+  f->FirstClusterNo = N;
+
+  if (isDir) {
+    f->Attr |= ATTR_DIRECTORY;
+    u_int8_t *dir = dataRegion + (N - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+
+    SoftLink *point = (SoftLink*)dir;
+    strcpy(point->Filename, ".");
+    point->fp = f;
+
+    SoftLink *point_point = (SoftLink*)(dir + FILE_ENTRY_SIZE);
+    strcpy(point_point, "..");
+    point_point->fp = (FILE_t*)working_dir;
+  }
 }
 
 
@@ -79,7 +81,7 @@ void initFileEntry(u_int8_t *fp,
  * create a file or directory in current working directory
  * @param isDir - 0 file, 1 directory
  */
-FILE_t* createFile(u_int8_t *working_dir,
+FILE_t* createFile(FILE_t *working_dir,
                    u_int16_t *FAT,
                    u_int8_t *data,
                    BootSector *sysInfo,
@@ -92,16 +94,16 @@ FILE_t* createFile(u_int8_t *working_dir,
     return NULL;
   }
   if (isRootDirectory(working_dir)) {
-    u_int8_t *begin = working_dir + FILE_ENTRY_SIZE; // skip the reserved entry in Root
+    u_int8_t *begin = (u_int8_t*)(working_dir + 1); // skip the reserved entry in Root
     u_int8_t *end = data;
     while (begin != end) {
       FILE_t *f = (FILE_t*)begin;
       if (f->Filename[0] == DIRECTORY_NOT_USED) {
-        initFileEntry(begin, filename, FAT, data, sysInfo, isDir);
+        initFileEntry(working_dir, begin, filename, FAT, data, sysInfo, isDir);
         return f;
       }
       else if (strcmp(f->Filename, filename) == 0){
-        printf("File Already Exists");
+        printf("File %s Already Exists\n", filename);
         return NULL;
       }
       begin += FILE_ENTRY_SIZE;
@@ -110,22 +112,18 @@ FILE_t* createFile(u_int8_t *working_dir,
     return NULL;
   }
   else {
-    u_int16_t clusterNo = ((FILE_t *)working_dir)->FirstClusterNo;
+    u_int16_t clusterNo = working_dir->FirstClusterNo;
     do {
       u_int8_t *begin = data + (clusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
       u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
       while (begin != end) {
         FILE_t *f = (FILE_t *) begin;
-        if (f->Attr & ATTR_HIDDEN) { // tricky solution to skip first two entries
-          begin += FILE_ENTRY_SIZE;
-          continue;
-        }
         if (f->Filename[0] == DIRECTORY_NOT_USED) {
-          initFileEntry(begin, filename, FAT, data, sysInfo, isDir);
+          initFileEntry(working_dir, begin, filename, FAT, data, sysInfo, isDir);
           return f;
         }
         else if (strcmp(f->Filename, filename) == 0) {
-          printf("File Already Exists");
+          printf("File %s Already Exists\n", filename);
           return NULL;
         }
         begin += FILE_ENTRY_SIZE;
@@ -137,9 +135,10 @@ FILE_t* createFile(u_int8_t *working_dir,
   }
 }
 
-void ls(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo) {
+void ls(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo) {
   if (isRootDirectory(working_dir)) {
-    u_int8_t *begin = working_dir + FILE_ENTRY_SIZE; // skip the reserved entry in Root
+    printf(".\t..\t");
+    u_int8_t *begin = (u_int8_t*)(working_dir + 1); // skip the reserved entry in Root
     u_int8_t *end = data;
     while (begin != end) {
       FILE_t *f = (FILE_t *) begin;
@@ -156,11 +155,6 @@ void ls(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysIn
       u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
       while (begin != end) {
         FILE_t *f = (FILE_t *) begin;
-        if (f->Attr & ATTR_HIDDEN) { // skip first two
-          printf(".\t..\t");
-          begin += 2 * FILE_ENTRY_SIZE;
-          continue;
-        }
         if (f->Filename[0] == DIRECTORY_NOT_USED)
           break;
         printf("%s\t", f->Filename);
@@ -171,30 +165,38 @@ void ls(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysIn
   }
 }
 
-u_int8_t* cd(u_int8_t *working_dir,
+FILE_t* cd(FILE_t *working_dir,
              u_int16_t *FAT,
              u_int8_t *data,
              BootSector *sysInfo,
              char *dir_name)
 {
   if (isRootDirectory(working_dir)) {
-    if (strcmp(dir_name, ONE_POINT) == 0 || strcmp(dir_name, TWO_POINT_FILE_ENTRY) == 0)
+    if (strcmp(dir_name, ".") == 0 || strcmp(dir_name, "..") == 0)
       return working_dir;
-    u_int8_t *begin = working_dir + FILE_ENTRY_SIZE; // skip the reserved entry in Root
+    u_int8_t *begin = (u_int8_t*)(working_dir + 1); // skip the reserved entry in Root
     u_int8_t *end = data;
     while (begin != end) {
       FILE_t *f = (FILE_t*)begin;
       if (f->Filename[0] == DIRECTORY_NOT_USED)
         return NULL;
       if (f->Attr == ATTR_DIRECTORY && strcmp(f->Filename, dir_name) == 0)
-        return data + (f->FirstClusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+        return f;
       begin += FILE_ENTRY_SIZE;
     }
 
     return NULL; // dir not found
   }
   else {
-    u_int16_t clusterNo = ((FILE_t *)working_dir)->FirstClusterNo;
+    u_int16_t clusterNo = working_dir->FirstClusterNo;
+    if (strcmp(dir_name, ".") == 0)
+      return working_dir;
+    if (strcmp(dir_name, "..") == 0) {
+      FILE_t *dir_content = (FILE_t*)(data + (clusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector);
+      ++dir_content;
+      return ((SoftLink*)dir_content)->fp;
+    }
+
     do {
       u_int8_t *begin = data + (clusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
       u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
@@ -202,10 +204,8 @@ u_int8_t* cd(u_int8_t *working_dir,
         FILE_t *f = (FILE_t *) begin;
         if (f->Filename[0] == DIRECTORY_NOT_USED)
           return NULL;
-        if ((f->Attr == ATTR_DIRECTORY || f->Attr == ATTR_VOLUME_ID) && strcmp(f->Filename, dir_name) == 0) {
-          if (f->Attr == ATTR_VOLUME_ID) // cd to root dir
-            return (u_int8_t*)FAT + sysInfo->FATCopies * sysInfo->SectorsPerFAT * sysInfo->BytesPerSector; // ROOT region
-          return data + (f->FirstClusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+        if (strcmp(f->Filename, dir_name) == 0) {
+          return f;
         }
         begin += FILE_ENTRY_SIZE;
       }
@@ -214,27 +214,17 @@ u_int8_t* cd(u_int8_t *working_dir,
 
     return NULL; // dir not found
   }
-
 }
 
-void pwd(u_int8_t *working_dir,
-         u_int16_t *FAT,
-         u_int8_t *data,
-         BootSector *sysInfo)
+void pwd(FILE_t *working_dir, u_int8_t *data, BootSector *sysInfo)
 {
   if (isRootDirectory(working_dir)) {
     printf("/");
     return;
   }
-  FILE_t *dir = (FILE_t*)working_dir;
-  u_int16_t parentCluster = (dir + 1)->FirstClusterNo;
-  if (parentCluster == 0) {
-    u_int8_t *ROOT = (u_int8_t*)FAT + sysInfo->FATCopies * sysInfo->SectorsPerFAT * sysInfo->BytesPerSector;
-    pwd(ROOT, FAT, data, sysInfo);
-  }
-  else {
-    u_int8_t *ROOT = data + (parentCluster - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
-    pwd(ROOT, FAT, data, sysInfo);
-  }
-  printf("%s/", dir->Filename);
+  FILE_t *dir_content = (FILE_t*)(data + (working_dir->FirstClusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector);
+  ++dir_content;
+  pwd(((SoftLink*)dir_content)->fp, data, sysInfo);
+  printf("%s/", working_dir->Filename);
 }
+

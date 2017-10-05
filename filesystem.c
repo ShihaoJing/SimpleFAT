@@ -32,6 +32,8 @@ char* generateData(char *source, size_t size)
 	return retval;
 }
 
+
+
 /*
  * filesystem() - loads in the filesystem and accepts commands
  */
@@ -75,8 +77,6 @@ void filesystem(char *file)
     f->Filename[0] = DIRECTORY_NOT_USED;
   }
 
-
-
   /*
    * Useful calculations
    *
@@ -90,14 +90,15 @@ void filesystem(char *file)
    */
 
   //TODO: parse file name into two parts, and show as xxx.xxx
-  u_int8_t *working_dir = (u_int8_t*)root;
+  FILE_t *working_dir = root;
+  /*
   createFile(working_dir, FAT, data, sysInfo, "home", 1);
   working_dir = cd(working_dir, FAT, data, sysInfo, "home");
   createFile(working_dir, FAT, data, sysInfo, "Shihao", 1);
-  working_dir = cd(working_dir, FAT, data, sysInfo, "Shihao");
   ls(working_dir, FAT, data, sysInfo);
-  pwd(working_dir, FAT, data, sysInfo);
-
+  pwd(working_dir, data, sysInfo);
+  working_dir = cd(working_dir, FAT, data, sysInfo, "Shihao");
+  pwd(working_dir, data, sysInfo);*/
 	/*
 	 * open file, handle errors, create it if necessary.
 	 * should end up with map referring to the filesystem.
@@ -157,20 +158,25 @@ void filesystem(char *file)
 		}
 		else if(!strncmp(buffer, "pwd", 3))
 		{
-			//pwd(cur);
+          pwd(working_dir, data, sysInfo);
+          printf("\n");
 		}
 		else if(!strncmp(buffer, "cd ", 3))
 		{
-			//cd(buffer+3);
+          FILE_t *dir = cd(working_dir, FAT, data, sysInfo, buffer+3);
+          if (dir != NULL)
+            working_dir = dir;
+          else
+            printf("cd: no such file or directory: %s\n", buffer+3);
 		}
 		else if(!strncmp(buffer, "ls", 2))
 		{
-			//ls(cur);
+          ls(working_dir, FAT, data, sysInfo);
+          printf("\n");
 		}
 		else if(!strncmp(buffer, "mkdir ", 6))
 		{
-			//Directory *d = mkdir(cur, buffer+6);
-
+          createFile(working_dir, FAT, data, sysInfo, buffer + 6, 1);
 		}
 		else if(!strncmp(buffer, "cat ", 4))
 		{

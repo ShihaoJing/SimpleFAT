@@ -26,8 +26,6 @@
 
 #define MAX_LEN_OF_SFN 11
 #define MAX_LEN_OF_LFN 255
-#define ONE_POINT ".          "
-#define TWO_POINT_FILE_ENTRY "..         "
 
 typedef struct BootSector {
   u_int8_t JumpCode[1]; // Code to jump to bootstrap code;
@@ -86,21 +84,27 @@ typedef struct FileEntry {
 typedef struct LongFileName
 {
   u_int8_t sequenceNo;            // Sequence number, 0xe5 for
-  u_int8_t fileName_Part1[13];    // file name part
+  u_int8_t fileName_Part1[10];    // file name part
   u_int8_t fileattribute;         // File attibute
   u_int8_t reserved_1;
   u_int8_t checksum;              // Checksum
-  u_int8_t fileName_Part2[9];    // WORD reserved_2;
+  u_int8_t fileName_Part2[12];    // WORD reserved_2;
   u_int16_t FirstClusterNo; // Must be zero
   u_int8_t fileName_Part3[4];
 } LFN;
 
-void initFileEntry(u_int8_t *fp, char *filename, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, int isDir);
-FILE_t* createFile(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename, int isDir);
+typedef struct SoftLink {
+  u_int8_t Filename[11];
+  u_int8_t reserved[13];
+  FILE_t *fp;
+} SoftLink;
 
 
-void ls(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
-u_int8_t* cd(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename);
-void pwd(u_int8_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
+void initFileEntry(u_int8_t *working_dir, u_int8_t *fp, char *filename, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, int isDir);
+FILE_t* createFile(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename, int isDir);
+FILE_t* cd(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename);
+
+void ls(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
+void pwd(FILE_t *working_dir, u_int8_t *data, BootSector *sysInfo);
 
 #endif
