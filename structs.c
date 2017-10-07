@@ -268,3 +268,276 @@ void undeleteFile(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSecto
     } while (clusterNo != END_OF_FILE);
   }
 }
+
+//cat: Outputs a file to the console. If used on a directory, say so and reject. If the file does not exist, say so and reject.
+void cat(char* filename, FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data,BootSector *sysInfo){
+  int found = 0; //false
+  FILE_t *f;
+  if (isRootDirectory(working_dir)) {
+    u_int8_t *begin = (u_int8_t*)(working_dir + 1); // skip the reserved entry in Root
+    u_int8_t *end = data;
+    while (begin != end) {
+      f = (FILE_t *) begin;
+      if (f->Filename[0] == DIRECTORY_NOT_USED)
+        break;
+      if(f->Attr == ATTR_DIRECTORY && strcmp(f->Filename, filename) == 0){
+        printf("%s is a directory.", filename);
+        break;
+      }
+      else if(strcmp(f->Filename, filename) == 0) {
+        found = 1;
+        break;
+      }
+      begin += FILE_ENTRY_SIZE;
+    }
+  }
+  else{
+    u_int16_t clusterNo = ((FILE_t*)working_dir)->FirstClusterNo;
+    do {
+      u_int8_t *begin = data + (clusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+      u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+      while (begin != end) {
+        f = (FILE_t *) begin;
+        if(f->Attr == ATTR_DIRECTORY && strcmp(f->Filename, filename) == 0){
+          printf("%s is a directory.", filename);
+          break;
+        }
+        else if(strcmp(f->Filename, filename) == 0) {
+          found = 1;
+          break;
+        }
+        begin += FILE_ENTRY_SIZE;
+      }
+      clusterNo = FAT[clusterNo]; // search in next cluster
+    } while (clusterNo != END_OF_FILE);
+  }
+  if(!found){
+    printf("File: %s does not exist!\n", filename);
+    return;
+  }
+  u_int8_t *output = data + (f->FirstClusterNo -2) * sysInfo->SectorsPerCluster * sysInfo-> BytesPerSector;
+  printf("%s\n", output);
+  return;
+}
+//Write <amt> bytes of <data> into the specified <file> in the current directory. This overwrites the file if it already exists.
+//This creates the file if it did not exist. The data is given as a stream of hex digits.
+void writeFile(char* filename, size_t amt, char *input, FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo){
+  int found = 0; //false
+  FILE_t *f;
+  if (isRootDirectory(working_dir)) {
+    u_int8_t *begin = (u_int8_t*)(working_dir + 1); // skip the reserved entry in Root
+    u_int8_t *end = data;
+    while (begin != end) {
+      f = (FILE_t *) begin;
+      if (f->Filename[0] == DIRECTORY_NOT_USED)
+        break;
+      if(f->Attr == ATTR_DIRECTORY && strcmp(f->Filename, filename) == 0){
+        printf("%s is a directory.", filename);
+        break;
+      }
+      else if(strcmp(f->Filename, filename) == 0) {
+        printf("in else if");
+        found = 1;
+        break;
+      }
+      begin += FILE_ENTRY_SIZE;
+    }
+  }
+  else{
+    u_int16_t clusterNo = ((FILE_t*)working_dir)->FirstClusterNo;
+    do {
+      u_int8_t *begin = data + (clusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+      u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+      while (begin != end) {
+        f = (FILE_t *) begin;
+        if(f->Attr == ATTR_DIRECTORY && strcmp(f->Filename, filename) == 0){
+          printf("%s is a directory.", filename);
+          break;
+        }
+        else if(strcmp(f->Filename, filename) == 0) {
+          found = 1;
+          break;
+        }
+        begin += FILE_ENTRY_SIZE;
+      }
+      clusterNo = FAT[clusterNo]; // search in next cluster
+    } while (clusterNo != END_OF_FILE);
+  }
+  if(!found){
+    f = createFile(working_dir, FAT, data, sysInfo, filename, 0); //0 means not a directory
+    u_int8_t * dest = data + (f->FirstClusterNo -2) * sysInfo->SectorsPerCluster * sysInfo-> BytesPerSector;
+    memcpy(dest, input, strlen(input)+1);
+    f->FileSize = strlen(input);
+  }
+  else if(found){
+    //dest, srt, len
+    u_int8_t * dest = data + (f->FirstClusterNo -2) * sysInfo->SectorsPerCluster * sysInfo-> BytesPerSector;
+    memcpy(dest, input, strlen(input)+1);
+    f->FileSize = strlen(input);
+  }
+
+}
+//Append <amt> bytes of <data> onto the specified <file> in the current directory.
+//This fails, without terminating, if the file does not already exist. The data is given as a stream of hex digits.
+void append(char*filename, size_t amt, char *input, FILE_t *working_dir, u_int16_t *FAT, u_int8_t * data, BootSector *sysInfo){
+  int found = 0; //false
+  FILE_t *f;
+  if (isRootDirectory(working_dir)) {
+    u_int8_t *begin = (u_int8_t*)(working_dir + 1); // skip the reserved entry in Root
+    u_int8_t *end = data;
+    while (begin != end) {
+      f = (FILE_t *) begin;
+      if (f->Filename[0] == DIRECTORY_NOT_USED)
+        break;
+      if(f->Attr == ATTR_DIRECTORY && strcmp(f->Filename, filename) == 0){
+        printf("%s is a directory.", filename);
+        break;
+      }
+      else if(strcmp(f->Filename, filename) == 0) {
+        found = 1;
+        break;
+      }
+      begin += FILE_ENTRY_SIZE;
+    }
+  }
+  else{
+    u_int16_t clusterNo = ((FILE_t*)working_dir)->FirstClusterNo;
+    do {
+      u_int8_t *begin = data + (clusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+      u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+      while (begin != end) {
+        f = (FILE_t *) begin;
+        if(f->Attr == ATTR_DIRECTORY && strcmp(f->Filename, filename) == 0){
+          printf("%s is a directory.", filename);
+          break;
+        }
+        else if(strcmp(f->Filename, filename) == 0) {
+          found = 1;
+          break;
+        }
+        begin += FILE_ENTRY_SIZE;
+      }
+      clusterNo = FAT[clusterNo]; // search in next cluster
+    } while (clusterNo != END_OF_FILE);
+  }
+  if(!found){
+    printf("File: %s doesn't exist!\n", filename);
+  }
+  else{
+    u_int8_t *appendStart = data + (f->FirstClusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector + f->FileSize;
+    memcpy(appendStart, input, strlen(input)+1);
+    f-> FileSize += strlen(input);
+  }
+
+}
+//Remove the bytes in the range [start,end) from the specified <file> in the current directory.
+// This fails, without terminating, if the file does not already exist
+void removeRange(char* filename, int start, int end, FILE_t *working_dir, u_int16_t *FAT, u_int16_t *data, BootSector *sysInfo){
+  int found = 0; //false
+  FILE_t *f;
+  if (isRootDirectory(working_dir)) {
+    u_int8_t *begin = (u_int8_t*)(working_dir + 1); // skip the reserved entry in Root
+    u_int8_t *end = data;
+    while (begin != end) {
+      f = (FILE_t *) begin;
+      if (f->Filename[0] == DIRECTORY_NOT_USED)
+        break;
+      if(f->Attr == ATTR_DIRECTORY && strcmp(f->Filename, filename) == 0){
+        printf("%s is a directory.", filename);
+        break;
+      }
+      else if(strcmp(f->Filename, filename) == 0) {
+        found = 1;
+        break;
+      }
+      begin += FILE_ENTRY_SIZE;
+    }
+  }
+  else{
+    u_int16_t clusterNo = ((FILE_t*)working_dir)->FirstClusterNo;
+    do {
+      u_int8_t *begin = data + (clusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+      u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+      while (begin != end) {
+        f = (FILE_t *) begin;
+        if(f->Attr == ATTR_DIRECTORY && strcmp(f->Filename, filename) == 0){
+          printf("%s is a directory.", filename);
+          break;
+        }
+        else if(strcmp(f->Filename, filename) == 0) {
+          found = 1;
+          break;
+        }
+        begin += FILE_ENTRY_SIZE;
+      }
+      clusterNo = FAT[clusterNo]; // search in next cluster
+    } while (clusterNo != END_OF_FILE);
+  }
+  if(!found){
+    printf("File: %s doesn't exist!\n", filename);
+  }
+  else{
+    //remove bytes in range [start, end)
+  }
+}
+
+//Removes a file and recovers the pages. Report, but do not terminate, if the file is a directory.
+void rm(char* filename, FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo){
+  int found = 0; //false
+  FILE_t *f;
+  if (isRootDirectory(working_dir)) {
+    u_int8_t *begin = (u_int8_t*)(working_dir + 1); // skip the reserved entry in Root
+    u_int8_t *end = data;
+    while (begin != end) {
+      f = (FILE_t *) begin;
+      if (f->Filename[0] == DIRECTORY_NOT_USED)
+        break;
+      if(f->Attr == ATTR_DIRECTORY && strcmp(f->Filename, filename) == 0){
+        printf("%s is a directory.\n", filename);
+        return;
+      }
+      else if(strcmp(f->Filename, filename) == 0) {
+        found = 1;
+        break;
+      }
+      begin += FILE_ENTRY_SIZE;
+    }
+  }
+  else{
+    u_int16_t clusterNo = ((FILE_t*)working_dir)->FirstClusterNo;
+    do {
+      u_int8_t *begin = data + (clusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+      u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
+      while (begin != end) {
+        f = (FILE_t *) begin;
+        if(f->Attr == ATTR_DIRECTORY && strcmp(f->Filename, filename) == 0){
+          printf("%s is a directory.", filename);
+          break;
+        }
+        else if(strcmp(f->Filename, filename) == 0) {
+          found = 1;
+          break;
+        }
+        begin += FILE_ENTRY_SIZE;
+      }
+      clusterNo = FAT[clusterNo]; // search in next cluster
+    } while (clusterNo != END_OF_FILE);
+  }
+  if(!found){
+    printf("File: %s doesn't exist!\n", filename);
+  }
+  else{
+    f->Attr = ATTR_DELETED;
+    u_int16_t clusterNo = f->FirstClusterNo;
+    do{
+      u_int16_t tmp = FAT[clusterNo];
+      if(tmp == END_OF_FILE){
+        break;
+      }
+      FAT[clusterNo] = DELETED_CLUSTER;
+      clusterNo = tmp;
+    }while(clusterNo != END_OF_FILE);
+  }
+
+
+}
