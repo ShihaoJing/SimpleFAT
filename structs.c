@@ -313,7 +313,7 @@ void rm_rf(FILE_t *file, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo) {
         if (!(f->Attr & ATTR_DIRECTORY)) { // remove file
           u_int16_t cluster = f->FirstClusterNo;
           do {
-            uint16_t next = FAT[cluster];
+            u_int16_t next = FAT[cluster];
             FAT[cluster] ^= DELETED_CLUSTER;
             cluster = next;
           } while (cluster != END_OF_FILE);
@@ -322,7 +322,7 @@ void rm_rf(FILE_t *file, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo) {
           if (isEmpty(f, FAT, data, sysInfo)) {
             u_int16_t cluster = f->FirstClusterNo;
             do {
-              uint16_t next = FAT[cluster];
+              u_int16_t next = FAT[cluster];
               FAT[cluster] ^= DELETED_CLUSTER;
               cluster = next;
             } while (cluster != END_OF_FILE);
@@ -356,7 +356,7 @@ void rm_dir(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sys
   dir->Attr ^= ATTR_DELETED;
   u_int16_t cluster = dir->FirstClusterNo;
   do {
-    uint16_t next = FAT[cluster];
+    u_int16_t next = FAT[cluster];
     FAT[cluster] ^= DELETED_CLUSTER;
     cluster = next;
   } while(cluster != END_OF_FILE);
@@ -523,7 +523,7 @@ void rm(char* filename, FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, Boo
   f->Attr ^= ATTR_DELETED;
   u_int16_t cluster = f->FirstClusterNo;
   do {
-    uint16_t next = FAT[cluster];
+    u_int16_t next = FAT[cluster];
     FAT[cluster] ^= DELETED_CLUSTER;
     cluster = next;
   } while (cluster != END_OF_FILE);
