@@ -38,9 +38,10 @@ char* generateData(char *source, size_t size)
 	return retval;
 }
 
-void initializeFileSystem(u_int8_t *map) {
-  int volumeSize = 4 * Mega;
-  sysInfo = (BootSector*)map;
+void initializeFileSystem(int volumeSize, char *file) {
+  FILE *fp = fopen(file, "wb");
+  void *map = malloc(volumeSize);
+  BootSector *sysInfo = (BootSector*)map;
   sysInfo->BytesPerSector = 512;
   sysInfo->SectorsPerCluster = 1; //cluster size = 4KB
   sysInfo->ReservedSectors = 1;
@@ -55,20 +56,21 @@ void initializeFileSystem(u_int8_t *map) {
   {
     *(u_int16_t*)fp = FREE_CLUSTER;
   }
-  FAT = (u_int16_t*)(sysInfo + 1);
+  u_int16_t  *FAT = (u_int16_t*)(sysInfo + 1);
   FAT[0] = RESERVED_CLUSTER; // FAT[0] reserved
   FAT[1] = RESERVED_CLUSTER; // FAT[1] reserved
 
-  root_dir = (FILE_t*)((u_int8_t*)FAT + MAX_FAT_SIZE);
+  FILE_t *root_dir = (FILE_t*)((u_int8_t*)FAT + MAX_FAT_SIZE);
   root_dir->Attr = ATTR_VOLUME_ID; // first entry of root is reserved
-  data = (u_int8_t*)(root_dir) + sysInfo->MaxRootEntries * FILE_ENTRY_SIZE;
+  u_int8_t *data = (u_int8_t*)(root_dir) + sysInfo->MaxRootEntries * FILE_ENTRY_SIZE;
   //initialize root and data region
   for (u_int8_t *begin = (u_int8_t*)root_dir, *end = map + volumeSize; begin != end; begin += FILE_ENTRY_SIZE) {
     FILE_t *f = (FILE_t*)begin;
     f->Filename[0] = DIRECTORY_NOT_USED;
   }
 
-  working_dir = root_dir;
+  fwrite(map, sizeof(u_int8_t), volumeSize, fp);
+  fclose(fp);
 }
 
 void verifyFileSystem(u_int8_t *map) {
@@ -92,10 +94,19 @@ void usage(u_int8_t *map, u_int8_t *root, u_int8_t *FAT) {
 void filesystem(char *file)
 {
 	/* pointer to the memory-mapped filesystem */
-  int volumeSize = 4 * Mega;
-  u_int8_t *map = mmap(0, volumeSize, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+  FILE *fp;
+  fp = fopen(file,"rb");  // w for write, b for binary
+  if (fp == NULL) {
+    initializeFileSystem(4*Mega, file);
+  }
 
-  initializeFileSystem(map);
+  int fd = open(file, O_RDWR, (mode_t)0600);
+  void *map = mmap(0, 4*Mega, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  sysInfo = (BootSector*)map;
+  FAT = (u_int16_t*)(sysInfo + 1);
+  root_dir = (FILE_t*)((u_int8_t*)FAT + MAX_FAT_SIZE);
+  data = (u_int8_t*)(root_dir) + sysInfo->MaxRootEntries * FILE_ENTRY_SIZE;
+  working_dir = root_dir;
   /*
    * Useful calculations
    *
@@ -169,8 +180,6 @@ void filesystem(char *file)
           FILE_t *dir = cd(working_dir, FAT, data, sysInfo, buffer+3);
           if (dir != NULL)
             working_dir = dir;
-          else
-            printf("cd: no such file or directory: %s\n", buffer+3);
 		}
 		else if(!strncmp(buffer, "ls", 2))
 		{

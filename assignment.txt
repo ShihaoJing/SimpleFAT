@@ -38,7 +38,7 @@ Task #1: Design the Initial Filesystem
     Root sector: Sector 0. Holds locations of all major elements such as the allocation table or the root directory.
     Allocation pages: Tracks what sectors are in use and possibly how they are connected to each other.
     Directory pages: A page full of directory entries.
-
+usa
   This is not meant to be an exhaustive list, you will have to manage large directories, tracking file usage, long file names, etc.
 
   The initial program must take in a single command line argument (fail otherwise) that indicates the name of the file that contains the filesystem. If the file does not exist, make it, report errors otherwise. If it does exist, validate it. Abort if the filesystem is corrupt. The basic file system will simply have the root directory that is empty - it will have metadata for used sectors and such.

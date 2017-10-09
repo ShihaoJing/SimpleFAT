@@ -41,9 +41,7 @@ FILE_t* searchFile(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSect
       begin += FILE_ENTRY_SIZE;
       if (f->Filename[0] == DIRECTORY_NOT_USED)
         return f;
-      if (f->Attr & ATTR_DELETED)
-        return f;
-      if (strcmp(f->Filename, filename) == 0 && !(f->Attr & ATTR_DELETED)){
+      if (strcmp(f->Filename, filename) == 0) {
         return f;
       }
     }
@@ -60,9 +58,7 @@ FILE_t* searchFile(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSect
         begin += FILE_ENTRY_SIZE;
         if (f->Filename[0] == DIRECTORY_NOT_USED)
           return f;
-        if (f->Attr & ATTR_DELETED)
-          return f;
-        if (strcmp(f->Filename, filename) == 0 && !(f->Attr & ATTR_DELETED))
+        if (strcmp(f->Filename, filename) == 0)
           return f;
       }
       clusterNo = FAT[clusterNo]; // search in next cluster
@@ -121,7 +117,7 @@ void initFileEntry(u_int8_t *working_dir,
   f->FirstClusterNo = N;
 
   if (isDir) {
-    f->Attr |= ATTR_DIRECTORY;
+    f->Attr ^= ATTR_DIRECTORY;
     u_int8_t *dir = dataRegion + (N - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
 
     SoftLink *point = (SoftLink*)dir;
@@ -237,20 +233,6 @@ FILE_t* cd(FILE_t *working_dir,
   if (isRootDirectory(working_dir)) {
     if (strcmp(dir_name, ".") == 0 || strcmp(dir_name, "..") == 0)
       return working_dir;
-    u_int8_t *begin = (u_int8_t*)(working_dir + 1); // skip the reserved entry in Root
-    u_int8_t *end = data;
-    while (begin != end) {
-      FILE_t *f = (FILE_t*)begin;
-      if (f->Attr == ATTR_DELETED)
-        continue;
-      if (f->Filename[0] == DIRECTORY_NOT_USED)
-        return NULL;
-      if (f->Attr == ATTR_DIRECTORY && strcmp(f->Filename, dir_name) == 0)
-        return f;
-      begin += FILE_ENTRY_SIZE;
-    }
-
-    return NULL; // dir not found
   }
   else {
     u_int16_t clusterNo = working_dir->FirstClusterNo;
@@ -261,27 +243,18 @@ FILE_t* cd(FILE_t *working_dir,
       ++dir_content;
       return ((SoftLink*)dir_content)->fp;
     }
-
-    do {
-      u_int8_t *begin = data + (clusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector
-                        + RESERVED_DIRECTORY_REGION_SIZE;
-      u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
-      while (begin != end) {
-        FILE_t *f = (FILE_t *) begin;
-        if (f->Attr == ATTR_DELETED)
-          continue;
-        if (f->Filename[0] == DIRECTORY_NOT_USED)
-          return NULL;
-        if (strcmp(f->Filename, dir_name) == 0) {
-          return f;
-        }
-        begin += FILE_ENTRY_SIZE;
-      }
-      clusterNo = FAT[clusterNo]; // find in next sector
-    } while (clusterNo != END_OF_FILE);
-
-    return NULL; // dir not found
   }
+
+  FILE_t *dir = searchFile(working_dir, FAT, data, sysInfo, dir_name);
+  if (dir == NULL || dir->Attr & ATTR_DELETED) {
+    printf("cd: no such file or directory: %s\n", dir_name);
+    return NULL;
+  }
+  if (!(dir->Attr & ATTR_DIRECTORY)) {
+    printf("cd: : %s is not a directory\n", dir_name);
+    return NULL;
+  }
+  return dir;
 }
 
 void pwd(FILE_t *working_dir, u_int8_t *data, BootSector *sysInfo)
@@ -304,10 +277,12 @@ void rm_rf(FILE_t *file, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo) {
     if (file->Attr & ATTR_DIRECTORY) {
       u_int8_t *begin = data + (clusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector
                         + RESERVED_DIRECTORY_REGION_SIZE;
-      u_int8_t *end = data;
+      u_int8_t *end = data + (clusterNo - 1) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
       while (begin != end) {
         FILE_t *f = (FILE_t *) begin;
         begin += FILE_ENTRY_SIZE;
+        if (f->Filename[0] == DIRECTORY_NOT_USED)
+          return;
         if (f->Attr & ATTR_HIDDEN || f->Attr & ATTR_DELETED)
           continue;
         if (!(f->Attr & ATTR_DIRECTORY)) { // remove file
@@ -401,7 +376,7 @@ void writeFile(char* filename, size_t amt, char *input, FILE_t *working_dir, u_i
   int found = 0; //false
   FILE_t *f = searchFile(working_dir, FAT, data, sysInfo, filename);
   if (f->Attr & ATTR_DIRECTORY) {
-    printf("cat: %s is not a file.\n", filename);
+    printf("writeFile: %s is not a file.\n", filename);
     return;
   }
   if (f->Attr & ATTR_DELETED)
