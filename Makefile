@@ -19,7 +19,7 @@ DEPS      = $(patsubst %, $(ODIR)/%.d, $(CFILES) $(TARGETS))
 
 # Use gcc
 CC = gcc
-CFLAGS = -MMD -O2 -m$(BITS) -ggdb -Wall
+CFLAGS = -std=c99 -MMD -O2 -m$(BITS) -ggdb -Wall
 LDFLAGS = -m$(BITS)
 
 # Best to be safe...

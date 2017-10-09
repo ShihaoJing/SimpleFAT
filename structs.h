@@ -1,7 +1,6 @@
 #ifndef STRUCTS_H
 #define STRUCTS_H
 
-#include <ntsid.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
