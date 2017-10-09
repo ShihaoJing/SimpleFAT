@@ -81,6 +81,7 @@ typedef struct FileEntry {
 } FILE_t; //
 
 #define FILE_ENTRY_SIZE sizeof(FILE_t)
+#define RESERVED_DIRECTORY_REGION_SIZE 2 * FILE_ENTRY_SIZE
 
 #define Last_LFN 0x40
 
@@ -107,6 +108,7 @@ typedef struct SoftLink {
 void initFileEntry(u_int8_t *working_dir, u_int8_t *fp, char *filename, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, int isDir);
 FILE_t* createFile(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename, int isDir);
 FILE_t* cd(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename);
+FILE_t* searchFile(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename);
 
 void ls(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
 void pwd(FILE_t *working_dir, u_int8_t *data, BootSector *sysInfo);
@@ -116,8 +118,18 @@ void cat(char* filename, FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data,Boo
 void writeFile(char* filename, size_t amt, char *input, FILE_t *working_dir, u_int16_t *FAT,u_int8_t *data, BootSector *sysInfo);
 void append(char* filename, size_t amt, char *input, FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
 void rm(char* filename, FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
-void removeRange(char* filename, int start, int end, FILE_t *working_dir, u_int16_t *FAT, u_int16_t *data, BootSector *sysInfo);
+void removeRange(char* filename, int start, int end, FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
 void rm_dir(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *dir_name);
+void rm_rf(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
 
+void get(char* filename, size_t startByte, size_t endByte, FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
+void getPages(FILE_t *file, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
+
+int isEmpty(FILE_t *f, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
+
+void scandisk(FILE_t *root_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
+
+void dump(u_int16_t pageNumber, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
+void dumpBinary(u_int16_t pageNumber, char *filename, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
 
 #endif

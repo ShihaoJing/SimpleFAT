@@ -15,6 +15,12 @@
 #define Mega (Kilo*Kilo)
 #define MAX_FAT_SIZE (128 * Kilo)
 
+BootSector *sysInfo = NULL;
+u_int16_t *FAT = NULL;
+u_int8_t *data = NULL;
+//TODO: parse file name into two parts, and show as xxx.xxx
+FILE_t *working_dir = NULL;
+FILE_t *root_dir = NULL;
 
 /*
  * generateData() - Converts source from hex digits to
@@ -33,39 +39,7 @@ char* generateData(char *source, size_t size)
 }
 
 void initializeFileSystem(u_int8_t *map) {
-
-}
-
-void verifyFileSystem(u_int8_t *map) {
-
-}
-
-void usage(u_int8_t *map, u_int8_t *root, u_int8_t *FAT) {
-  printf("%lu bytes have been used by system\n", root - map);
-  int count = 0;
-  for (u_int8_t *fp = FAT, *e = fp + MAX_FAT_SIZE; fp != e; fp += 2)
-  {
-    if (*(u_int16_t*)fp != FREE_CLUSTER)
-      ++count;
-  }
-  printf("%d bytes have been used by actual files\n", count * 512);
-}
-
-
-
-/*
- * filesystem() - loads in the filesystem and accepts commands
- */
-void filesystem(char *file)
-{
-	/* pointer to the memory-mapped filesystem */
   int volumeSize = 4 * Mega;
-  u_int8_t *map = mmap(0, volumeSize, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-
-  BootSector *sysInfo = NULL;
-  u_int16_t *FAT = NULL;
-  u_int8_t *data = NULL;
-
   sysInfo = (BootSector*)map;
   sysInfo->BytesPerSector = 512;
   sysInfo->SectorsPerCluster = 1; //cluster size = 4KB
@@ -85,15 +59,43 @@ void filesystem(char *file)
   FAT[0] = RESERVED_CLUSTER; // FAT[0] reserved
   FAT[1] = RESERVED_CLUSTER; // FAT[1] reserved
 
-  FILE_t *root = (FILE_t*)((u_int8_t*)FAT + MAX_FAT_SIZE);
-  root->Attr = ATTR_VOLUME_ID; // first entry of root is reserved
-  data = (u_int8_t*)(root) + sysInfo->MaxRootEntries * FILE_ENTRY_SIZE;
+  root_dir = (FILE_t*)((u_int8_t*)FAT + MAX_FAT_SIZE);
+  root_dir->Attr = ATTR_VOLUME_ID; // first entry of root is reserved
+  data = (u_int8_t*)(root_dir) + sysInfo->MaxRootEntries * FILE_ENTRY_SIZE;
   //initialize root and data region
-  for (u_int8_t *begin = (u_int8_t*)root, *end = map + volumeSize; begin != end; begin += FILE_ENTRY_SIZE) {
+  for (u_int8_t *begin = (u_int8_t*)root_dir, *end = map + volumeSize; begin != end; begin += FILE_ENTRY_SIZE) {
     FILE_t *f = (FILE_t*)begin;
     f->Filename[0] = DIRECTORY_NOT_USED;
   }
 
+  working_dir = root_dir;
+}
+
+void verifyFileSystem(u_int8_t *map) {
+  scandisk(root_dir, FAT, data, sysInfo);
+}
+
+void usage(u_int8_t *map, u_int8_t *root, u_int8_t *FAT) {
+  printf("%lu bytes have been used by system\n", root - map);
+  int count = 0;
+  for (u_int8_t *fp = FAT, *e = fp + MAX_FAT_SIZE; fp != e; fp += 2)
+  {
+    if (*(u_int16_t*)fp != FREE_CLUSTER)
+      ++count;
+  }
+  printf("%d bytes have been used by actual files\n", count * 512);
+}
+
+/*
+ * filesystem() - loads in the filesystem and accepts commands
+ */
+void filesystem(char *file)
+{
+	/* pointer to the memory-mapped filesystem */
+  int volumeSize = 4 * Mega;
+  u_int8_t *map = mmap(0, volumeSize, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+
+  initializeFileSystem(map);
   /*
    * Useful calculations
    *
@@ -105,24 +107,6 @@ void filesystem(char *file)
    *
    *
    */
-
-  //TODO: parse file name into two parts, and show as xxx.xxx
-  FILE_t *working_dir = root;
-
-
-  /*
-  createFile(working_dir, FAT, data, sysInfo, "home", 1);
-  working_dir = cd(working_dir, FAT, data, sysInfo, "home");
-  createFile(working_dir, FAT, data, sysInfo, "Shihao", 1);
-  ls(working_dir, FAT, data, sysInfo);
-  pwd(working_dir, data, sysInfo);
-  working_dir = cd(working_dir, FAT, data, sysInfo, "Shihao");
-  pwd(working_dir, data, sysInfo);*/
-	/*
-	 * open file, handle errors, create it if necessary.
-	 * should end up with map referring to the filesystem.
-	 */
-
 
 	/* You will probably want other variables here for tracking purposes */
 
@@ -160,7 +144,7 @@ void filesystem(char *file)
 		{
 			if(isdigit(buffer[5]))
 			{
-				//dump(stdout, atoi(buffer + 5));
+				dump(atoi(buffer + 5), FAT, data, sysInfo);
 			}
 			else
 			{
@@ -168,12 +152,12 @@ void filesystem(char *file)
 				char *space = strstr(buffer+5, " ");
 				*space = '\0';
 				//open and validate filename
-				//dumpBinary(file, atoi(space + 1));
+				dumpBinary(atoi(space + 1), filename, FAT, data, sysInfo);
 			}
 		}
 		else if(!strncmp(buffer, "usage", 5))
 		{
-			usage(map, root, FAT);
+			usage(map, (u_int8_t*)root_dir, (u_int8_t*)FAT);
 		}
 		else if(!strncmp(buffer, "pwd", 3))
 		{
@@ -237,7 +221,9 @@ void filesystem(char *file)
 		}
 		else if(!strncmp(buffer, "getpages ", 9))
 		{
-			//getpages(buffer + 9);
+            FILE_t *f = searchFile(working_dir, FAT, data, sysInfo, buffer+9);
+            if (f != NULL)
+              getPages(f, FAT, data, sysInfo);
 		}
 		else if(!strncmp(buffer, "get ", 4))
 		{
@@ -247,15 +233,17 @@ void filesystem(char *file)
 			size_t start = atoi(space + 1);
 			space = strstr(space+1, " ");
 			size_t end = atoi(space + 1);
-			//get(filename, start, end);
+			get(filename, start, end, working_dir, FAT, data, sysInfo);
 		}
 		else if(!strncmp(buffer, "rmdir ", 6))
 		{
-			//rmdir(buffer + 6);
+			rm_dir(working_dir, FAT, data, sysInfo, buffer+6);
 		}
 		else if(!strncmp(buffer, "rm -rf ", 7))
 		{
-			//rmForce(buffer + 7);
+            FILE_t *dir = searchFile(working_dir, FAT, data, sysInfo, buffer+7);
+            if (dir != NULL)
+			  rm_rf(dir, FAT, data, sysInfo);
 		}
 		else if(!strncmp(buffer, "rm ", 3))
 		{
@@ -264,7 +252,7 @@ void filesystem(char *file)
 		}
 		else if(!strncmp(buffer, "scandisk", 8))
 		{
-			//scandisk();
+			scandisk(root_dir, FAT, data, sysInfo);
 		}
 		else if(!strncmp(buffer, "undelete ", 9))
 		{
