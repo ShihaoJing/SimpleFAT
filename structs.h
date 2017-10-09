@@ -112,6 +112,11 @@ void ls(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo
 void pwd(FILE_t *working_dir, u_int8_t *data, BootSector *sysInfo);
 void undeleteFile(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename);
 
+void cat(char* filename, FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data,BootSector *sysInfo);
+void writeFile(char* filename, size_t amt, char *input, FILE_t *working_dir, u_int16_t *FAT,u_int8_t *data, BootSector *sysInfo);
+void append(char* filename, size_t amt, char *input, FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
+void rm(char* filename, FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
+void removeRange(char* filename, int start, int end, FILE_t *working_dir, u_int16_t *FAT, u_int16_t *data, BootSector *sysInfo);
 void rm_dir(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *dir_name);
 
 

@@ -199,7 +199,7 @@ void filesystem(char *file)
 		}
 		else if(!strncmp(buffer, "cat ", 4))
 		{
-			//cat(buffer + 4);
+			cat(buffer + 4, working_dir, FAT, data, sysInfo);
 		}
 		else if(!strncmp(buffer, "write ", 6))
 		{
@@ -209,9 +209,19 @@ void filesystem(char *file)
 			size_t amt = atoi(space + 1);
 			space = strstr(space+1, " ");
 
-			char *data = generateData(space+1, amt<<1);
-			//write(filename, amt, data);
-			free(data);
+			//char *data = generateData(space+1, amt<<1);
+			writeFile(filename, amt, space+1, working_dir, FAT, data, sysInfo);
+			//free(data);
+		}
+		else if(!strncmp(buffer, "remove ", 7)){
+			char *filename = buffer+7;
+			char *space = strstr(buffer+7, " ");
+			*space = '\0';
+			int start = atoi(space+1);
+			space = strstr(space+1, " ");
+			int end = atoi(space+1);
+
+			removeRange(filename, start, end, working_dir, FAT, data, sysInfo);
 		}
 		else if(!strncmp(buffer, "append ", 7))
 		{
@@ -221,9 +231,9 @@ void filesystem(char *file)
 			size_t amt = atoi(space + 1);
 			space = strstr(space+1, " ");
 
-			char *data = generateData(space+1, amt<<1);
-			//append(filename, amt, data);
-			free(data);
+			//char *data = generateData(space+1, amt<<1);
+			append(filename, amt, space+1, working_dir, FAT, data, sysInfo);
+			//free(data);
 		}
 		else if(!strncmp(buffer, "getpages ", 9))
 		{
@@ -249,7 +259,8 @@ void filesystem(char *file)
 		}
 		else if(!strncmp(buffer, "rm ", 3))
 		{
-			//rm(buffer + 3);
+			rm(buffer + 3, working_dir, FAT, data, sysInfo);
+
 		}
 		else if(!strncmp(buffer, "scandisk", 8))
 		{
