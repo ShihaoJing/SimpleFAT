@@ -155,6 +155,8 @@ void ls(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo
       u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
       while (begin != end) {
         FILE_t *f = (FILE_t *) begin;
+        if (f->Attr == ATTR_DELETED)
+          continue;
         if (f->Filename[0] == DIRECTORY_NOT_USED)
           break;
         printf("%s\t", f->Filename);
@@ -178,6 +180,8 @@ FILE_t* cd(FILE_t *working_dir,
     u_int8_t *end = data;
     while (begin != end) {
       FILE_t *f = (FILE_t*)begin;
+      if (f->Attr == ATTR_DELETED)
+        continue;
       if (f->Filename[0] == DIRECTORY_NOT_USED)
         return NULL;
       if (f->Attr == ATTR_DIRECTORY && strcmp(f->Filename, dir_name) == 0)
@@ -202,6 +206,8 @@ FILE_t* cd(FILE_t *working_dir,
       u_int8_t *end = begin + sysInfo->SectorsPerCluster * sysInfo->BytesPerSector;
       while (begin != end) {
         FILE_t *f = (FILE_t *) begin;
+        if (f->Attr == ATTR_DELETED)
+          continue;
         if (f->Filename[0] == DIRECTORY_NOT_USED)
           return NULL;
         if (strcmp(f->Filename, dir_name) == 0) {
@@ -226,6 +232,46 @@ void pwd(FILE_t *working_dir, u_int8_t *data, BootSector *sysInfo)
   ++dir_content;
   pwd(((SoftLink*)dir_content)->fp, data, sysInfo);
   printf("%s/", working_dir->Filename);
+}
+
+void rm_all(int clusterNo, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo) {
+  do {
+    u_int8_t *begin = data + (clusterNo - 2) * sysInfo->SectorsPerCluster * sysInfo->BytesPerSector; // skip the reserved entry in Root
+    u_int8_t *end = data;
+    while (begin != end) {
+      FILE_t *f = (FILE_t *) begin;
+      if (f->Attr == ATTR_HIDDEN || f->Attr == ATTR_DELETED)
+        continue;
+      if (f->Attr != ATTR_DIRECTORY) {
+        //rm file;
+      }
+      else {
+        rm_all(f->FirstClusterNo, FAT, data, sysInfo);
+        f->Attr = ATTR_DELETED;
+      }
+    }
+    int next = FAT[clusterNo];
+    FAT[clusterNo] = DELETED_CLUSTER;
+    clusterNo = next;
+  } while (clusterNo != END_OF_FILE);
+}
+
+void rm_dir(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *dir_name) {
+  if (isRootDirectory(working_dir)) {
+    u_int8_t *begin = (u_int8_t*)(working_dir + 1); // skip the reserved entry in Root
+    u_int8_t *end = data;
+    while (begin != end) {
+      FILE_t *f = (FILE_t*)begin;
+      if (f->Attr == ATTR_DELETED)
+        continue;
+      if (f->Filename[0] == DIRECTORY_NOT_USED)
+        break;
+      if (f->Attr == ATTR_DIRECTORY && strcmp(f->Filename, dir_name) == 0) {
+
+      }
+      begin += FILE_ENTRY_SIZE;
+    }
+  }
 }
 
 void undeleteFATEntry(int clusterNo, u_int16_t *FAT) {

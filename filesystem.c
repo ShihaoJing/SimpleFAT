@@ -85,8 +85,6 @@ void filesystem(char *file)
   FAT[0] = RESERVED_CLUSTER; // FAT[0] reserved
   FAT[1] = RESERVED_CLUSTER; // FAT[1] reserved
 
-
-
   FILE_t *root = (FILE_t*)((u_int8_t*)FAT + MAX_FAT_SIZE);
   root->Attr = ATTR_VOLUME_ID; // first entry of root is reserved
   data = (u_int8_t*)(root) + sysInfo->MaxRootEntries * FILE_ENTRY_SIZE;
@@ -110,6 +108,8 @@ void filesystem(char *file)
 
   //TODO: parse file name into two parts, and show as xxx.xxx
   FILE_t *working_dir = root;
+
+
   /*
   createFile(working_dir, FAT, data, sysInfo, "home", 1);
   working_dir = cd(working_dir, FAT, data, sysInfo, "home");
@@ -259,8 +259,6 @@ void filesystem(char *file)
 		{
           undeleteFile(working_dir, FAT, data, sysInfo, buffer+9);
 		}
-
-
 
 		free(buffer);
 		buffer = NULL;

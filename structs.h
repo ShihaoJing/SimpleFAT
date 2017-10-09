@@ -24,6 +24,7 @@
 #define END_OF_FILE       0xFFFF
 #define RESERVED_CLUSTER  0xFF00
 #define DELETED_CLUSTER   0xF000
+#define CHECK_CLUSTER 0xFF11
 
 #define MAX_LEN_OF_SFN 11
 #define MAX_LEN_OF_LFN 255
@@ -97,7 +98,8 @@ typedef struct LongFileName
 
 typedef struct SoftLink {
   u_int8_t Filename[11];
-  u_int8_t reserved[13];
+  u_int8_t Attr;
+  u_int8_t reserved[12];
   FILE_t *fp;
 } SoftLink;
 
@@ -109,6 +111,8 @@ FILE_t* cd(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysI
 void ls(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo);
 void pwd(FILE_t *working_dir, u_int8_t *data, BootSector *sysInfo);
 void undeleteFile(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *filename);
+
+void rm_dir(FILE_t *working_dir, u_int16_t *FAT, u_int8_t *data, BootSector *sysInfo, char *dir_name);
 
 
 #endif

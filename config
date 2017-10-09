@@ -1,0 +1,8 @@
+512
+  sysInfo->SectorsPerCluster = 1; //cluster size = 4KB
+  sysInfo->ReservedSectors = 1;
+  sysInfo->FATCopies = 1;
+  sysInfo->MaxRootEntries = 512;
+  sysInfo->TotalSectors = volumeSize / sysInfo->BytesPerSector;
+  sysInfo->SectorsPerFAT = MAX_FAT_SIZE / sysInfo->BytesPerSector;
+  memcpy(sysInfo->FileSystemType, "FAT16", 6);
